@@ -8,6 +8,8 @@ interface GlassCardProps {
   hoverable?: boolean;
   glowColor?: string;
   blur?: 'sm' | 'md' | 'lg' | 'xl';
+  style?: React.CSSProperties;
+  onClick?: () => void;
 }
 
 const GlassCard: React.FC<GlassCardProps> = ({
@@ -15,7 +17,9 @@ const GlassCard: React.FC<GlassCardProps> = ({
   className = '',
   hoverable = false,
   glowColor = '#00D4FF',
-  blur = 'xl'
+  blur = 'xl',
+  style,
+  onClick
 }) => {
   const blurClasses = {
     sm: 'backdrop-blur-sm',
@@ -38,7 +42,9 @@ const GlassCard: React.FC<GlassCardProps> = ({
           0 0 1px rgba(255, 255, 255, 0.1) inset,
           ${hoverable ? `0 0 20px ${glowColor}20` : ''}
         `,
+        ...style
       }}
+      onClick={onClick}
     >
       {/* Holographic gradient overlay */}
       <div className="absolute inset-0 rounded-2xl opacity-20 bg-gradient-to-br from-electric-500/20 via-transparent to-purple-500/20 pointer-events-none" />

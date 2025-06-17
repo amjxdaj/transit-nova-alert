@@ -46,10 +46,11 @@ export class NotificationManager {
         badge: payload.badge || '/icon-192x192.png',
         tag: payload.tag,
         requireInteraction: payload.requireInteraction || false,
-        silent: false,
-        vibrate: [200, 100, 200],
-        actions: payload.actions || []
+        silent: false
       });
+
+      // Vibrate separately using the Vibration API
+      this.vibrate([200, 100, 200]);
 
       // Auto-close after 10 seconds if not requiring interaction
       if (!payload.requireInteraction) {

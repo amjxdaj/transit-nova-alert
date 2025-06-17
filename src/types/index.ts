@@ -112,7 +112,6 @@ export interface NotificationPayload {
   badge?: string;
   tag?: string;
   requireInteraction?: boolean;
-  actions?: NotificationAction[];
 }
 
 export interface EmergencyContact {
