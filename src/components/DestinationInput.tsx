@@ -1,7 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MapPin, Search, Clock, Star } from 'lucide-react';
+import { MapPin, Search, Clock, Star, Navigation } from 'lucide-react';
 import { Destination } from '@/types';
+import { nominatimService } from '@/services/nominatimService';
+import { calculateDistance, formatDistance } from '@/utils/geolocation';
 import GlassCard from './GlassCard';
 import GlassButton from './GlassButton';
 
@@ -9,6 +11,7 @@ interface DestinationInputProps {
   onDestinationSelect: (destination: Destination) => void;
   recentDestinations: Destination[];
   favoriteDestinations: Destination[];
+  currentLocation?: { lat: number; lng: number } | null;
   className?: string;
 }
 
@@ -16,51 +19,39 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
   onDestinationSelect,
   recentDestinations,
   favoriteDestinations,
+  currentLocation,
   className = ''
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Destination[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout>();
 
-  // Mock search function - in real app, this would use Google Places API
   const searchPlaces = async (query: string): Promise<Destination[]> => {
-    if (query.length < 2) return [];
-
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Mock results
-    const mockResults: Destination[] = [
-      {
-        id: '1',
-        name: 'Central Station',
-        address: '123 Main St, Downtown',
-        location: { lat: 40.7128, lng: -74.0060 },
-        placeId: 'place_1'
-      },
-      {
-        id: '2',
-        name: 'Shopping Mall',
-        address: '456 Commerce Ave, Midtown',
-        location: { lat: 40.7589, lng: -73.9851 },
-        placeId: 'place_2'
-      },
-      {
-        id: '3',
-        name: 'University Campus',
-        address: '789 Education Blvd, University District',
-        location: { lat: 40.7831, lng: -73.9712 },
-        placeId: 'place_3'
+    try {
+      setError(null);
+      const results = await nominatimService.searchPlaces(query, currentLocation || undefined);
+      
+      // Add distance information if current location is available
+      if (currentLocation) {
+        results.forEach(destination => {
+          const distance = calculateDistance(currentLocation, destination.location);
+          destination.distance = distance;
+        });
+        
+        // Sort by distance for nearby results
+        results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
       }
-    ].filter(place => 
-      place.name.toLowerCase().includes(query.toLowerCase()) ||
-      place.address.toLowerCase().includes(query.toLowerCase())
-    );
-
-    return mockResults;
+      
+      return results;
+    } catch (error) {
+      console.error('Place search error:', error);
+      setError('Unable to search places. Please try again.');
+      return [];
+    }
   };
 
   const handleSearchChange = (value: string) => {
@@ -79,14 +70,16 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
           setShowSuggestions(true);
         } catch (error) {
           console.error('Search error:', error);
+          setError('Search failed. Please try again.');
         } finally {
           setIsLoading(false);
         }
-      }, 300);
+      }, 500);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
       setIsLoading(false);
+      setError(null);
     }
   };
 
@@ -95,11 +88,13 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
     setSearchQuery('');
     setShowSuggestions(false);
     setSuggestions([]);
+    setError(null);
   };
 
   const renderDestinationItem = (destination: Destination, type: 'search' | 'recent' | 'favorite') => {
     const icon = type === 'favorite' ? Star : type === 'recent' ? Clock : MapPin;
     const Icon = icon;
+    const distance = destination.distance ? formatDistance(destination.distance) : null;
 
     return (
       <div
@@ -116,9 +111,16 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
         </div>
         
         <div className="flex-1 min-w-0">
-          <h4 className="text-white font-medium text-sm truncate group-hover:text-electric-300 transition-colors">
-            {destination.name}
-          </h4>
+          <div className="flex items-center gap-2">
+            <h4 className="text-white font-medium text-sm truncate group-hover:text-electric-300 transition-colors">
+              {destination.name}
+            </h4>
+            {distance && currentLocation && (
+              <span className="text-xs bg-electric-500/20 text-electric-400 px-2 py-1 rounded-full">
+                {distance}
+              </span>
+            )}
+          </div>
           <p className="text-gray-400 text-xs truncate">
             {destination.address}
           </p>
@@ -153,7 +155,7 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Where are you going?"
+            placeholder="Search for places..."
             className="w-full pl-12 pr-4 py-3 bg-transparent border-none outline-none text-white placeholder-gray-400 text-lg"
             onFocus={() => setShowSuggestions(searchQuery.length >= 2)}
           />
@@ -165,15 +167,31 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
         </div>
       </GlassCard>
 
+      {/* Error State */}
+      {error && (
+        <GlassCard className="mb-4 p-4 border-red-500/30 bg-red-500/10">
+          <p className="text-red-400 text-sm">{error}</p>
+        </GlassCard>
+      )}
+
       {/* Search Suggestions */}
       {showSuggestions && suggestions.length > 0 && (
         <GlassCard className="mb-4 max-h-60 overflow-y-auto">
           <div className="p-2">
-            <h3 className="text-gray-400 text-xs uppercase tracking-wide font-semibold px-3 py-2">
-              Search Results
+            <h3 className="text-gray-400 text-xs uppercase tracking-wide font-semibold px-3 py-2 flex items-center gap-2">
+              <Navigation size={12} />
+              Places Near You
             </h3>
             {suggestions.map(destination => renderDestinationItem(destination, 'search'))}
           </div>
+        </GlassCard>
+      )}
+
+      {/* No Results */}
+      {showSuggestions && suggestions.length === 0 && !isLoading && !error && searchQuery.length >= 2 && (
+        <GlassCard className="mb-4 p-4 text-center">
+          <MapPin size={32} className="mx-auto mb-2 text-gray-600" />
+          <p className="text-gray-400 text-sm">No places found for "{searchQuery}"</p>
         </GlassCard>
       )}
 
@@ -208,12 +226,12 @@ const DestinationInput: React.FC<DestinationInputProps> = ({
       )}
 
       {/* Empty State */}
-      {!showSuggestions && favoriteDestinations.length === 0 && recentDestinations.length === 0 && (
+      {!showSuggestions && favoriteDestinations.length === 0 && recentDestinations.length === 0 && !error && (
         <GlassCard className="p-8 text-center">
           <MapPin size={48} className="mx-auto mb-4 text-gray-600" />
-          <h3 className="text-white font-medium mb-2">No destinations yet</h3>
+          <h3 className="text-white font-medium mb-2">Find Your Destination</h3>
           <p className="text-gray-400 text-sm">
-            Start typing to search for your destination
+            Start typing to search for places using OpenStreetMap
           </p>
         </GlassCard>
       )}

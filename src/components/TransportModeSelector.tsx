@@ -15,7 +15,7 @@ const TransportModeSelector: React.FC<TransportModeSelectorProps> = ({
   onModeChange,
   className = ''
 }) => {
-  const modes: { key: TransportMode; icon: React.ComponentType; label: string; color: string }[] = [
+  const modes: { key: TransportMode; icon: React.ComponentType<any>; label: string; color: string }[] = [
     { key: 'bus', icon: Bus, label: 'Bus', color: '#00D4FF' },
     { key: 'train', icon: Train, label: 'Train', color: '#39FF14' },
     { key: 'car', icon: Car, label: 'Car', color: '#8B5CF6' },
@@ -43,8 +43,7 @@ const TransportModeSelector: React.FC<TransportModeSelectorProps> = ({
           >
             <div className="flex flex-col items-center gap-2">
               <Icon 
-                size={24} 
-                className={`${isSelected ? 'text-white' : 'text-gray-400'} transition-colors`}
+                className={`w-6 h-6 ${isSelected ? 'text-white' : 'text-gray-400'} transition-colors`}
                 style={{
                   filter: isSelected ? `drop-shadow(0 0 10px ${color}80)` : 'none',
                   color: isSelected ? color : undefined,

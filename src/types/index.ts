@@ -1,4 +1,3 @@
-
 export interface Location {
   lat: number;
   lng: number;
@@ -14,6 +13,7 @@ export interface Destination {
   placeId?: string;
   isFavorite?: boolean;
   lastUsed?: number;
+  distance?: number; // Distance from current location in meters
 }
 
 export interface Journey {

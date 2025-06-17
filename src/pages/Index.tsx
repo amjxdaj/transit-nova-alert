@@ -5,21 +5,23 @@ import Dashboard from '@/components/Dashboard';
 import DestinationInput from '@/components/DestinationInput';
 import TransportModeSelector from '@/components/TransportModeSelector';
 import JourneyTracker from '@/components/JourneyTracker';
+import MapView from '@/components/MapView';
 import GlassCard from '@/components/GlassCard';
 import GlassButton from '@/components/GlassButton';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useJourneyManager } from '@/hooks/useJourneyManager';
 import { StorageManager } from '@/utils/storage';
 import { Destination, TransportMode } from '@/types';
-import { ArrowLeft, Settings, MapPin } from 'lucide-react';
+import { ArrowLeft, Settings, MapPin, Map } from 'lucide-react';
 
-type AppScreen = 'dashboard' | 'destination' | 'transport' | 'tracking' | 'settings';
+type AppScreen = 'dashboard' | 'destination' | 'transport' | 'tracking' | 'settings' | 'map';
 
 const Index = () => {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('dashboard');
   const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
   const [selectedTransportMode, setSelectedTransportMode] = useState<TransportMode>('bus');
   const [isLoading, setIsLoading] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   const {
     currentJourney,
@@ -179,7 +181,28 @@ const Index = () => {
               onDestinationSelect={handleDestinationSelect}
               recentDestinations={StorageManager.getDestinations().filter(d => !d.isFavorite).slice(0, 5)}
               favoriteDestinations={StorageManager.getDestinations().filter(d => d.isFavorite)}
+              currentLocation={currentLocation}
             />
+
+            {(selectedDestination || currentLocation) && (
+              <GlassButton
+                variant="secondary"
+                onClick={() => setShowMap(!showMap)}
+                className="w-full flex items-center gap-2"
+              >
+                <Map size={16} />
+                {showMap ? 'Hide Map' : 'Show Map'}
+              </GlassButton>
+            )}
+
+            {showMap && (
+              <MapView
+                currentLocation={currentLocation}
+                destination={selectedDestination?.location}
+                className="mt-4"
+                height="300px"
+              />
+            )}
           </div>
         );
 
@@ -198,6 +221,11 @@ const Index = () => {
                   <div>
                     <h3 className="text-white font-medium">{selectedDestination.name}</h3>
                     <p className="text-gray-400 text-sm">{selectedDestination.address}</p>
+                    {selectedDestination.distance && (
+                      <p className="text-electric-400 text-xs mt-1">
+                        Distance: {(selectedDestination.distance / 1000).toFixed(1)}km
+                      </p>
+                    )}
                   </div>
                 </div>
               </GlassCard>
@@ -207,6 +235,14 @@ const Index = () => {
               selectedMode={selectedTransportMode}
               onModeChange={setSelectedTransportMode}
             />
+
+            {selectedDestination && (
+              <MapView
+                currentLocation={currentLocation}
+                destination={selectedDestination.location}
+                height="200px"
+              />
+            )}
 
             <GlassButton
               variant="primary"
@@ -223,7 +259,7 @@ const Index = () => {
 
       case 'tracking':
         return currentJourney ? (
-          <div className="p-4">
+          <div className="p-4 space-y-4">
             <JourneyTracker
               journey={currentJourney}
               currentLocation={currentLocation}
@@ -232,6 +268,14 @@ const Index = () => {
               onResumeJourney={resumeJourney}
               onEmergencyStop={emergencyStop}
             />
+            
+            {currentLocation && (
+              <MapView
+                currentLocation={currentLocation}
+                destination={currentJourney.destination.location}
+                height="250px"
+              />
+            )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center p-4">
