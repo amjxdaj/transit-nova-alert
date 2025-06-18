@@ -1,10 +1,26 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { BackgroundMode } from '@capacitor-community/background-mode';
-import { KeepAwake } from '@capacitor-community/keep-awake';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Location, TrackingMode } from '@/types';
 import { calculateDistance, estimateArrivalTime } from '@/utils/geolocation';
+
+// Dynamic imports for community plugins to avoid build errors in web
+let BackgroundMode: any = null;
+let KeepAwake: any = null;
+
+// Initialize plugins only on native platforms
+const initializePlugins = async () => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { BackgroundMode: BgMode } = await import('@capacitor-community/background-mode');
+      const { KeepAwake: KA } = await import('@capacitor-community/keep-awake');
+      BackgroundMode = BgMode;
+      KeepAwake = KA;
+    } catch (error) {
+      console.warn('Background plugins not available:', error);
+    }
+  }
+};
 
 export interface SmartTrackingConfig {
   destinationLocation: Location;
@@ -20,6 +36,7 @@ export class BackgroundLocationService {
   private trackingStartTime: number = 0;
   private currentTrackingMode: TrackingMode = 'minimal';
   private callbacks: Set<(location: Location) => void> = new Set();
+  private pluginsInitialized = false;
 
   async initialize(): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) {
@@ -28,6 +45,12 @@ export class BackgroundLocationService {
     }
 
     try {
+      // Initialize plugins
+      if (!this.pluginsInitialized) {
+        await initializePlugins();
+        this.pluginsInitialized = true;
+      }
+
       // Request permissions
       await this.requestPermissions();
       
@@ -60,6 +83,12 @@ export class BackgroundLocationService {
   async startSmartTracking(config: SmartTrackingConfig): Promise<void> {
     this.config = config;
     this.trackingStartTime = Date.now();
+    
+    // Initialize plugins if not done
+    if (!this.pluginsInitialized) {
+      await initializePlugins();
+      this.pluginsInitialized = true;
+    }
     
     // Enable background mode and keep awake if available
     try {
