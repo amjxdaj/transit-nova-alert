@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { BackgroundMode } from '@capacitor/background-mode';
-import { KeepAwake } from '@capacitor/keep-awake';
+import { BackgroundMode } from '@capacitor-community/background-mode';
+import { KeepAwake } from '@capacitor-community/keep-awake';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Location, TrackingMode } from '@/types';
 import { calculateDistance, estimateArrivalTime } from '@/utils/geolocation';
@@ -31,8 +31,10 @@ export class BackgroundLocationService {
       // Request permissions
       await this.requestPermissions();
       
-      // Setup background mode
-      await BackgroundMode.enable();
+      // Setup background mode if available
+      if (BackgroundMode) {
+        await BackgroundMode.enable();
+      }
       
       return true;
     } catch (error) {
@@ -59,9 +61,17 @@ export class BackgroundLocationService {
     this.config = config;
     this.trackingStartTime = Date.now();
     
-    // Enable background mode and keep awake
-    await BackgroundMode.enable();
-    await KeepAwake.keepAwake();
+    // Enable background mode and keep awake if available
+    try {
+      if (BackgroundMode) {
+        await BackgroundMode.enable();
+      }
+      if (KeepAwake) {
+        await KeepAwake.keepAwake();
+      }
+    } catch (error) {
+      console.warn('Failed to enable background mode:', error);
+    }
     
     // Start with initial location
     await this.getCurrentLocationAndTrack();
@@ -203,9 +213,17 @@ export class BackgroundLocationService {
       this.watchId = null;
     }
 
-    // Disable background mode and allow sleep
-    await BackgroundMode.disable();
-    await KeepAwake.allowSleep();
+    // Disable background mode and allow sleep if available
+    try {
+      if (BackgroundMode) {
+        await BackgroundMode.disable();
+      }
+      if (KeepAwake) {
+        await KeepAwake.allowSleep();
+      }
+    } catch (error) {
+      console.warn('Failed to disable background mode:', error);
+    }
 
     this.config = null;
     this.currentTrackingMode = 'minimal';
