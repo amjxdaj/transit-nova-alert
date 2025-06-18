@@ -32,13 +32,15 @@ const MapView: React.FC<MapViewProps> = ({
   const markersRef = useRef<{ current?: L.Marker; destination?: L.Marker }>({});
   const routeRef = useRef<L.Polyline | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const lastLocationRef = useRef<Location | null>(null);
+  const lastDestinationRef = useRef<Location | null>(null);
+  const boundsUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize map
+  // Initialize map only once
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
     try {
-      // Add a small delay to ensure DOM is ready
       const initMap = () => {
         if (!mapRef.current) return;
 
@@ -47,10 +49,9 @@ const MapView: React.FC<MapViewProps> = ({
           zoom: 13,
           zoomControl: true,
           attributionControl: true,
-          preferCanvas: true // Better performance
+          preferCanvas: true
         });
 
-        // Add dark themed OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap contributors',
           maxZoom: 19,
@@ -60,13 +61,11 @@ const MapView: React.FC<MapViewProps> = ({
         mapInstanceRef.current = map;
         setIsMapReady(true);
 
-        // Add map event listeners after initialization
         map.whenReady(() => {
           console.log('Map is ready');
         });
       };
 
-      // Small delay to ensure container is fully rendered
       setTimeout(initMap, 100);
 
     } catch (error) {
@@ -74,6 +73,9 @@ const MapView: React.FC<MapViewProps> = ({
     }
 
     return () => {
+      if (boundsUpdateTimeoutRef.current) {
+        clearTimeout(boundsUpdateTimeoutRef.current);
+      }
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -86,7 +88,7 @@ const MapView: React.FC<MapViewProps> = ({
     };
   }, []);
 
-  // Apply dark theme styles
+  // Apply dark theme styles once
   useEffect(() => {
     if (!isMapReady) return;
 
@@ -126,9 +128,19 @@ const MapView: React.FC<MapViewProps> = ({
     };
   }, [isMapReady]);
 
-  // Update current location marker
+  // Update current location marker (only if location changed significantly)
   useEffect(() => {
     if (!mapInstanceRef.current || !currentLocation || !isMapReady) return;
+
+    // Check if location changed significantly (more than 10 meters)
+    if (lastLocationRef.current) {
+      const distance = Math.sqrt(
+        Math.pow(currentLocation.lat - lastLocationRef.current.lat, 2) +
+        Math.pow(currentLocation.lng - lastLocationRef.current.lng, 2)
+      ) * 111000; // Rough conversion to meters
+
+      if (distance < 10) return; // Don't update for small changes
+    }
 
     const map = mapInstanceRef.current;
 
@@ -149,15 +161,7 @@ const MapView: React.FC<MapViewProps> = ({
             border: 3px solid white; 
             border-radius: 50%; 
             box-shadow: 0 0 20px #00D4FF80;
-            animation: pulse 2s infinite;
           "></div>
-          <style>
-            @keyframes pulse {
-              0% { box-shadow: 0 0 20px #00D4FF80; }
-              50% { box-shadow: 0 0 30px #00D4FF; }
-              100% { box-shadow: 0 0 20px #00D4FF80; }
-            }
-          </style>
         `,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
@@ -171,16 +175,25 @@ const MapView: React.FC<MapViewProps> = ({
       currentMarker.bindPopup('Your Current Location');
       markersRef.current.current = currentMarker;
 
-      // Center map on current location
-      map.setView([currentLocation.lat, currentLocation.lng], 15);
+      // Only center map if this is the first location update
+      if (!lastLocationRef.current) {
+        map.setView([currentLocation.lat, currentLocation.lng], 15);
+      }
+
+      lastLocationRef.current = currentLocation;
     } catch (error) {
       console.error('Error updating current location marker:', error);
     }
   }, [currentLocation, isMapReady]);
 
-  // Update destination marker
+  // Update destination marker (only once per destination)
   useEffect(() => {
     if (!mapInstanceRef.current || !destination || !isMapReady) return;
+
+    // Don't update if destination hasn't changed
+    if (lastDestinationRef.current && 
+        lastDestinationRef.current.lat === destination.lat && 
+        lastDestinationRef.current.lng === destination.lng) return;
 
     const map = mapInstanceRef.current;
 
@@ -216,19 +229,27 @@ const MapView: React.FC<MapViewProps> = ({
       destMarker.bindPopup('Your Destination');
       markersRef.current.destination = destMarker;
 
-      // Fit map to show both markers if current location exists
-      if (currentLocation && markersRef.current.current) {
-        const group = L.featureGroup([markersRef.current.current, destMarker]);
-        map.fitBounds(group.getBounds().pad(0.1));
-      } else {
-        map.setView([destination.lat, destination.lng], 15);
+      // Debounce bounds update to prevent frequent map adjustments
+      if (boundsUpdateTimeoutRef.current) {
+        clearTimeout(boundsUpdateTimeoutRef.current);
       }
+
+      boundsUpdateTimeoutRef.current = setTimeout(() => {
+        if (currentLocation && markersRef.current.current) {
+          const group = L.featureGroup([markersRef.current.current, destMarker]);
+          map.fitBounds(group.getBounds().pad(0.1));
+        } else {
+          map.setView([destination.lat, destination.lng], 15);
+        }
+      }, 1000); // Wait 1 second before updating bounds
+
+      lastDestinationRef.current = destination;
     } catch (error) {
       console.error('Error updating destination marker:', error);
     }
-  }, [destination, currentLocation, isMapReady]);
+  }, [destination, isMapReady]);
 
-  // Update route
+  // Update route (only when route actually changes)
   useEffect(() => {
     if (!mapInstanceRef.current || !route || route.length < 2 || !isMapReady) return;
 
@@ -253,8 +274,10 @@ const MapView: React.FC<MapViewProps> = ({
 
       routeRef.current = routeLine;
 
-      // Fit map to route
-      map.fitBounds(routeLine.getBounds().pad(0.1));
+      // Only fit bounds to route if no current tracking is happening
+      if (!currentLocation) {
+        map.fitBounds(routeLine.getBounds().pad(0.1));
+      }
     } catch (error) {
       console.error('Error updating route:', error);
     }
