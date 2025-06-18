@@ -1,41 +1,9 @@
+
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Location, TrackingMode } from '@/types';
 import { calculateDistance, estimateArrivalTime } from '@/utils/geolocation';
-
-// Dynamic imports for community plugins to avoid build errors in web
-let BackgroundMode: any = null;
-let KeepAwake: any = null;
-
-// Initialize plugins only on native platforms
-const initializePlugins = async () => {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      // Try to import background mode plugin
-      try {
-        const bgModule = await import('@capacitor-community/background-mode');
-        BackgroundMode = bgModule.BackgroundMode;
-        console.log('BackgroundMode plugin loaded successfully');
-      } catch (error) {
-        console.warn('BackgroundMode plugin not available:', error);
-      }
-
-      // Try to import keep awake plugin
-      try {
-        const kaModule = await import('@capacitor-community/keep-awake');
-        KeepAwake = kaModule.KeepAwake;
-        console.log('KeepAwake plugin loaded successfully');
-      } catch (error) {
-        console.warn('KeepAwake plugin not available:', error);
-      }
-    } catch (error) {
-      console.warn('Failed to initialize native plugins:', error);
-    }
-  } else {
-    console.log('Running in web environment, background plugins not available');
-  }
-};
 
 export interface SmartTrackingConfig {
   destinationLocation: Location;
@@ -51,7 +19,6 @@ export class BackgroundLocationService {
   private trackingStartTime: number = 0;
   private currentTrackingMode: TrackingMode = 'minimal';
   private callbacks: Set<(location: Location) => void> = new Set();
-  private pluginsInitialized = false;
 
   async initialize(): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) {
@@ -60,20 +27,10 @@ export class BackgroundLocationService {
     }
 
     try {
-      // Initialize plugins
-      if (!this.pluginsInitialized) {
-        await initializePlugins();
-        this.pluginsInitialized = true;
-      }
-
       // Request permissions
       await this.requestPermissions();
       
-      // Setup background mode if available
-      if (BackgroundMode) {
-        await BackgroundMode.enable();
-      }
-      
+      console.log('Background location service initialized (web-compatible mode)');
       return true;
     } catch (error) {
       console.error('Failed to initialize background location service:', error);
@@ -99,30 +56,7 @@ export class BackgroundLocationService {
     this.config = config;
     this.trackingStartTime = Date.now();
     
-    // Initialize plugins if not done
-    if (!this.pluginsInitialized) {
-      await initializePlugins();
-      this.pluginsInitialized = true;
-    }
-    
-    // Enable background mode and keep awake if available
-    try {
-      if (BackgroundMode) {
-        await BackgroundMode.enable();
-        console.log('Background mode enabled');
-      } else {
-        console.warn('Background mode not available');
-      }
-      
-      if (KeepAwake) {
-        await KeepAwake.keepAwake();
-        console.log('Keep awake enabled');
-      } else {
-        console.warn('Keep awake not available');
-      }
-    } catch (error) {
-      console.warn('Failed to enable background mode:', error);
-    }
+    console.log('Smart tracking started (using standard location tracking)');
     
     // Start with initial location
     await this.getCurrentLocationAndTrack();
@@ -262,20 +196,6 @@ export class BackgroundLocationService {
     if (this.watchId) {
       await Geolocation.clearWatch({ id: this.watchId });
       this.watchId = null;
-    }
-
-    // Disable background mode and allow sleep if available
-    try {
-      if (BackgroundMode) {
-        await BackgroundMode.disable();
-        console.log('Background mode disabled');
-      }
-      if (KeepAwake) {
-        await KeepAwake.allowSleep();
-        console.log('Keep awake disabled');
-      }
-    } catch (error) {
-      console.warn('Failed to disable background mode:', error);
     }
 
     this.config = null;
