@@ -217,7 +217,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
     setCurrentJourney(completedJourney);
     StorageManager.addJourney(completedJourney);
-    StorageManager.addDestination(completedJourney);
+    StorageManager.addDestination(completedJourney.destination);
     
     stopLocationTracking();
 
