@@ -1,5 +1,6 @@
-
 import { Location, TrackingMode } from '@/types';
+import { backgroundLocationService } from '@/services/backgroundLocationService';
+import { Capacitor } from '@capacitor/core';
 
 export class GeolocationManager {
   private watchId: number | null = null;
@@ -7,9 +8,26 @@ export class GeolocationManager {
   private trackingMode: TrackingMode = 'minimal';
   private callbacks: Set<(position: Location) => void> = new Set();
   private errorCallbacks: Set<(error: GeolocationPositionError) => void> = new Set();
+  private isBackgroundMode: boolean = false;
 
   constructor() {
     this.checkPermission();
+    this.initializeBackgroundService();
+  }
+
+  private async initializeBackgroundService(): Promise<void> {
+    if (Capacitor.isNativePlatform()) {
+      const initialized = await backgroundLocationService.initialize();
+      if (initialized) {
+        console.log('Background location service initialized');
+        
+        // Listen to background location updates
+        backgroundLocationService.onLocationUpdate((location) => {
+          this.lastPosition = location;
+          this.callbacks.forEach(callback => callback(location));
+        });
+      }
+    }
   }
 
   async checkPermission(): Promise<PermissionState> {
@@ -51,9 +69,42 @@ export class GeolocationManager {
     });
   }
 
+  async enableBackgroundTracking(destination: Location, transportMode: string): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) {
+      console.warn('Background tracking only available on native platforms');
+      return false;
+    }
+
+    try {
+      const distance = calculateDistance(this.lastPosition || { lat: 0, lng: 0 }, destination);
+      const estimatedTime = estimateArrivalTime(distance, transportMode);
+
+      await backgroundLocationService.startSmartTracking({
+        destinationLocation: destination,
+        estimatedTotalTime: estimatedTime,
+        transportMode
+      });
+
+      this.isBackgroundMode = true;
+      console.log('Background tracking enabled');
+      return true;
+    } catch (error) {
+      console.error('Failed to enable background tracking:', error);
+      return false;
+    }
+  }
+
+  async disableBackgroundTracking(): Promise<void> {
+    if (this.isBackgroundMode) {
+      await backgroundLocationService.stopTracking();
+      this.isBackgroundMode = false;
+      console.log('Background tracking disabled');
+    }
+  }
+
   setTrackingMode(mode: TrackingMode): void {
     this.trackingMode = mode;
-    if (this.watchId !== null) {
+    if (this.watchId !== null && !this.isBackgroundMode) {
       this.stopTracking();
       this.startTracking();
     }
@@ -93,6 +144,12 @@ export class GeolocationManager {
   }
 
   startTracking(): void {
+    // If background mode is active, don't start web-based tracking
+    if (this.isBackgroundMode) {
+      console.log('Background tracking is active, skipping web tracking');
+      return;
+    }
+
     if (this.watchId !== null) {
       this.stopTracking();
     }
@@ -126,7 +183,7 @@ export class GeolocationManager {
     }
   }
 
-  getCurrentPosition(): Promise<Location> {
+  async getCurrentPosition(): Promise<Location> {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -159,11 +216,17 @@ export class GeolocationManager {
   }
 
   isTracking(): boolean {
-    return this.watchId !== null;
+    return this.watchId !== null || this.isBackgroundMode;
   }
 
   getTrackingMode(): TrackingMode {
-    return this.trackingMode;
+    return this.isBackgroundMode 
+      ? backgroundLocationService.getTrackingMode() 
+      : this.trackingMode;
+  }
+
+  isBackgroundTrackingActive(): boolean {
+    return this.isBackgroundMode;
   }
 }
 

@@ -4,6 +4,7 @@ import { GeolocationManager, calculateDistance } from '@/utils/geolocation';
 import { NotificationManager } from '@/utils/notifications';
 import { StorageManager } from '@/utils/storage';
 import { toast } from '@/hooks/use-toast';
+import { backgroundLocationService } from '@/services/backgroundLocationService';
 
 interface UseJourneyManagerReturn {
   currentJourney: Journey | null;
@@ -15,6 +16,7 @@ interface UseJourneyManagerReturn {
   currentLocation: Location | null;
   isTracking: boolean;
   error: string | null;
+  isBackgroundTrackingActive: boolean;
 }
 
 export const useJourneyManager = (): UseJourneyManagerReturn => {
@@ -25,6 +27,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
   const [geolocationManager] = useState(() => new GeolocationManager());
   const [notificationManager] = useState(() => new NotificationManager());
   const [alertedDistances, setAlertedDistances] = useState<Set<AlertType>>(new Set());
+  const [isBackgroundTrackingActive, setIsBackgroundTrackingActive] = useState(false);
 
   // Initialize from storage
   useEffect(() => {
@@ -80,12 +83,14 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
     geolocationManager.startTracking();
     setIsTracking(true);
+    setIsBackgroundTrackingActive(geolocationManager.isBackgroundTrackingActive());
 
     return () => {
       unsubscribeLocation();
       unsubscribeError();
       geolocationManager.stopTracking();
       setIsTracking(false);
+      setIsBackgroundTrackingActive(false);
     };
   }, [geolocationManager]);
 
@@ -268,11 +273,28 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
       setCurrentLocation(startLocation);
       setAlertedDistances(new Set());
       
+      // Enable background tracking for mobile
+      const backgroundEnabled = await geolocationManager.enableBackgroundTracking(
+        destination.location,
+        transportMode
+      );
+      
+      if (backgroundEnabled) {
+        console.log('Background tracking enabled for journey');
+        setIsBackgroundTrackingActive(true);
+        
+        // Send background notification
+        await backgroundLocationService.sendBackgroundNotification(
+          'Journey Started',
+          `Tracking your trip to ${destination.name} in background`
+        );
+      }
+      
       startLocationTracking();
 
       toast({
         title: "Journey Started",
-        description: `Tracking your trip to ${destination.name}`,
+        description: `Tracking your trip to ${destination.name}${backgroundEnabled ? ' (Background mode enabled)' : ''}`,
         duration: 3000,
       });
 
@@ -287,7 +309,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
     }
   };
 
-  const stopJourney = useCallback(() => {
+  const stopJourney = useCallback(async () => {
     if (!currentJourney) return;
 
     const stoppedJourney: Journey = {
@@ -298,6 +320,10 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
     setCurrentJourney(stoppedJourney);
     StorageManager.addJourney(stoppedJourney);
+    
+    // Disable background tracking
+    await geolocationManager.disableBackgroundTracking();
+    setIsBackgroundTrackingActive(false);
     
     stopLocationTracking();
 
@@ -312,7 +338,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
       setCurrentJourney(null);
       setAlertedDistances(new Set());
     }, 1000);
-  }, [currentJourney, stopLocationTracking]);
+  }, [currentJourney, geolocationManager]);
 
   const pauseJourney = useCallback(() => {
     if (!currentJourney) return;
@@ -367,6 +393,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
     emergencyStop,
     currentLocation,
     isTracking,
-    error
+    error,
+    isBackgroundTrackingActive
   };
 };
