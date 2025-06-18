@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { Journey, Destination, Location, TransportMode, JourneyStatus, Alert, AlertType } from '@/types';
 import { GeolocationManager, calculateDistance } from '@/utils/geolocation';
@@ -40,6 +39,22 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
   useEffect(() => {
     StorageManager.saveCurrentJourney(currentJourney);
   }, [currentJourney]);
+
+  // Resume audio context on user interaction
+  useEffect(() => {
+    const resumeAudio = () => {
+      notificationManager.resumeAudioContext();
+    };
+
+    // Listen for user interactions to resume audio context
+    document.addEventListener('touchstart', resumeAudio, { once: true });
+    document.addEventListener('click', resumeAudio, { once: true });
+
+    return () => {
+      document.removeEventListener('touchstart', resumeAudio);
+      document.removeEventListener('click', resumeAudio);
+    };
+  }, [notificationManager]);
 
   const startLocationTracking = useCallback(() => {
     console.log('Starting location tracking...');
@@ -117,16 +132,11 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
           alerts: [...prev.alerts, alert]
         } : null);
 
-        // Send notification
-        if (preferences.notifications.sound) {
-          notificationManager.playSound();
-        }
-        
-        if (preferences.notifications.vibration) {
-          notificationManager.vibrate();
-        }
+        // Resume audio context before playing sounds
+        await notificationManager.resumeAudioContext();
 
-        if (preferences.notifications.visual) {
+        // Send notification with enhanced alerts
+        if (preferences.notifications.sound || preferences.notifications.vibration) {
           switch (alertType) {
             case 'first_warning':
               await notificationManager.showProgressAlert(distance, 600000); // 10 min estimate
@@ -207,7 +217,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
     setCurrentJourney(completedJourney);
     StorageManager.addJourney(completedJourney);
-    StorageManager.addDestination(completedJourney.destination);
+    StorageManager.addDestination(completedJourney);
     
     stopLocationTracking();
 
@@ -330,14 +340,16 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
     });
   }, [currentJourney, startLocationTracking]);
 
-  const emergencyStop = useCallback(() => {
+  const emergencyStop = useCallback(async () => {
     if (!currentJourney) return;
 
+    // Resume audio context and play emergency alarm
+    await notificationManager.resumeAudioContext();
+    
     stopJourney();
     
     notificationManager.showEmergencyAlert('Emergency stop activated. Journey tracking stopped.');
-    notificationManager.vibrate([100, 100, 100, 100, 100]);
-
+    
     toast({
       title: "🚨 Emergency Stop",
       description: "Journey tracking stopped immediately",
