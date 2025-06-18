@@ -12,13 +12,28 @@ let KeepAwake: any = null;
 const initializePlugins = async () => {
   if (Capacitor.isNativePlatform()) {
     try {
-      const { BackgroundMode: BgMode } = await import('@capacitor-community/background-mode');
-      const { KeepAwake: KA } = await import('@capacitor-community/keep-awake');
-      BackgroundMode = BgMode;
-      KeepAwake = KA;
+      // Try to import background mode plugin
+      try {
+        const bgModule = await import('@capacitor-community/background-mode');
+        BackgroundMode = bgModule.BackgroundMode;
+        console.log('BackgroundMode plugin loaded successfully');
+      } catch (error) {
+        console.warn('BackgroundMode plugin not available:', error);
+      }
+
+      // Try to import keep awake plugin
+      try {
+        const kaModule = await import('@capacitor-community/keep-awake');
+        KeepAwake = kaModule.KeepAwake;
+        console.log('KeepAwake plugin loaded successfully');
+      } catch (error) {
+        console.warn('KeepAwake plugin not available:', error);
+      }
     } catch (error) {
-      console.warn('Background plugins not available:', error);
+      console.warn('Failed to initialize native plugins:', error);
     }
+  } else {
+    console.log('Running in web environment, background plugins not available');
   }
 };
 
@@ -94,9 +109,16 @@ export class BackgroundLocationService {
     try {
       if (BackgroundMode) {
         await BackgroundMode.enable();
+        console.log('Background mode enabled');
+      } else {
+        console.warn('Background mode not available');
       }
+      
       if (KeepAwake) {
         await KeepAwake.keepAwake();
+        console.log('Keep awake enabled');
+      } else {
+        console.warn('Keep awake not available');
       }
     } catch (error) {
       console.warn('Failed to enable background mode:', error);
@@ -246,9 +268,11 @@ export class BackgroundLocationService {
     try {
       if (BackgroundMode) {
         await BackgroundMode.disable();
+        console.log('Background mode disabled');
       }
       if (KeepAwake) {
         await KeepAwake.allowSleep();
+        console.log('Keep awake disabled');
       }
     } catch (error) {
       console.warn('Failed to disable background mode:', error);
