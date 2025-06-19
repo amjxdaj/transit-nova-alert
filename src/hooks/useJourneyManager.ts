@@ -97,10 +97,12 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
   const stopLocationTracking = useCallback(() => {
     console.log('Stopping location tracking...');
     geolocationManager.stopTracking();
+    // Also stop any long alarms
+    notificationManager.stopLongAlarm();
     setIsTracking(false);
-  }, [geolocationManager]);
+  }, [geolocationManager, notificationManager]);
 
-  // Handle journey tracking logic
+  // Enhanced journey tracking logic with better alert handling
   useEffect(() => {
     if (!currentJourney || !currentLocation || currentJourney.status !== 'tracking') {
       return;
@@ -118,10 +120,10 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
       distance
     } : null);
 
-    // Check for alerts
+    // Enhanced alert checking with better distance thresholds
     const checkAndSendAlert = async (alertType: AlertType, distance: number, threshold: number) => {
       if (distance <= threshold && !alertedDistances.has(alertType)) {
-        console.log(`Triggering ${alertType} alert at ${distance}m`);
+        console.log(`🚨 Triggering ${alertType} alert at ${distance}m`);
         
         const alert: Alert = {
           id: `${alertType}_${Date.now()}`,
@@ -144,10 +146,12 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
         if (preferences.notifications.sound || preferences.notifications.vibration) {
           switch (alertType) {
             case 'first_warning':
-              await notificationManager.showProgressAlert(distance, 600000); // 10 min estimate
+              // Special 1km warning with long alarm
+              console.log('🔔 Sending 1KM WARNING with long alarm');
+              await notificationManager.showProgressAlert(distance, 600000);
               break;
             case 'approaching':
-              await notificationManager.showProgressAlert(distance, 120000); // 2 min estimate
+              await notificationManager.showProgressAlert(distance, 120000);
               break;
             case 'final_warning':
               await notificationManager.showFinalAlert();
@@ -165,12 +169,12 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
         toast({
           title: getAlertTitle(alertType),
           description: getAlertMessage(alertType),
-          duration: alertType === 'final_warning' ? 10000 : 5000,
+          duration: alertType === 'final_warning' || alertType === 'first_warning' ? 10000 : 5000,
         });
       }
     };
 
-    // Check alerts in order of proximity
+    // Enhanced alert checking with adjusted thresholds
     if (distance <= 50) {
       // Arrived
       checkAndSendAlert('arrived', distance, 50);
@@ -183,6 +187,10 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
       // Approaching (1km default)
       checkAndSendAlert('approaching', distance, preferences.alertDistances.approaching);
       geolocationManager.setTrackingMode('active');
+    } else if (distance <= 1200) {
+      // First warning for 1km - enhanced with long alarm
+      checkAndSendAlert('first_warning', distance, 1200);
+      geolocationManager.setTrackingMode('active');
     } else {
       // Use minimal tracking when far away
       geolocationManager.setTrackingMode('minimal');
@@ -192,7 +200,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
   const getAlertTitle = (alertType: AlertType): string => {
     switch (alertType) {
-      case 'first_warning': return '🔔 Journey Alert';
+      case 'first_warning': return '🚨 1KM WARNING!';
       case 'approaching': return '⚠️ Approaching Destination';
       case 'final_warning': return '🎯 Get Ready!';
       case 'arrived': return '✅ Destination Reached';
@@ -202,7 +210,7 @@ export const useJourneyManager = (): UseJourneyManagerReturn => {
 
   const getAlertMessage = (alertType: AlertType): string => {
     switch (alertType) {
-      case 'first_warning': return 'You are approaching your destination. Stay alert!';
+      case 'first_warning': return 'You are 1km from your destination! Start preparing to exit.';
       case 'approaching': return 'Less than 1km to your destination. Prepare to exit.';
       case 'final_warning': return 'Very close to your destination. Get ready to exit!';
       case 'arrived': return 'You have arrived at your destination. Safe travels!';

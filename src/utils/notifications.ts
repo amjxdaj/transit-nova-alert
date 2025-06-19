@@ -1,10 +1,10 @@
-
 import { NotificationPayload } from '@/types';
 
 export class NotificationManager {
   private permission: NotificationPermission = 'default';
   private audioContext: AudioContext | null = null;
   private alarmAudio: HTMLAudioElement | null = null;
+  private longAlarmInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.checkPermission();
@@ -87,20 +87,32 @@ export class NotificationManager {
     const timeText = this.formatTime(estimatedTime);
     const distanceText = this.formatDistance(distance);
 
-    // Play alert sound and vibrate
-    this.playAlertSound();
-    this.vibrate([300, 100, 300]);
+    // Special handling for 1km warning - long alarm
+    if (distance <= 1200 && distance > 800) {
+      console.log('Playing long 1km warning alarm');
+      this.playLongWarningAlarm();
+      this.vibrateLong([500, 200, 500, 200, 500, 200, 500, 200, 500]);
+    } else {
+      // Regular alert sound and vibrate for other distances
+      this.playAlertSound();
+      this.vibrate([300, 100, 300]);
+    }
 
     await this.showNotification({
-      title: '🚌 Transit Alert',
-      body: `Approaching destination in ${timeText} (${distanceText})`,
+      title: distance <= 1200 ? '🚨 1KM WARNING!' : '🚌 Transit Alert',
+      body: distance <= 1200 
+        ? `APPROACHING DESTINATION! Get ready in ${timeText}` 
+        : `Approaching destination in ${timeText} (${distanceText})`,
       icon: '/icon-192x192.png',
       tag: 'transit-progress',
-      requireInteraction: true
+      requireInteraction: distance <= 1200 // Require interaction for 1km warning
     });
   }
 
   async showFinalAlert(): Promise<void> {
+    // Stop any ongoing long alarms
+    this.stopLongAlarm();
+    
     // Play urgent alarm and strong vibration
     this.playUrgentAlarm();
     this.vibrate([500, 200, 500, 200, 500]);
@@ -115,6 +127,9 @@ export class NotificationManager {
   }
 
   async showArrivalAlert(): Promise<void> {
+    // Stop any ongoing alarms
+    this.stopLongAlarm();
+    
     // Play success sound and gentle vibration
     this.playSuccessSound();
     this.vibrate([200, 100, 200, 100, 200]);
@@ -129,6 +144,9 @@ export class NotificationManager {
   }
 
   async showEmergencyAlert(message: string): Promise<void> {
+    // Stop any ongoing alarms
+    this.stopLongAlarm();
+    
     // Play emergency alarm with continuous vibration
     this.playEmergencyAlarm();
     this.vibrate([100, 50, 100, 50, 100, 50, 100, 50, 100]);
@@ -162,6 +180,57 @@ export class NotificationManager {
       navigator.vibrate(pattern);
     } else {
       console.warn('Vibration API not supported on this device');
+    }
+  }
+
+  vibrateLong(pattern: number[]): void {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
+      // Repeat the pattern 3 times for long vibration
+      setTimeout(() => navigator.vibrate(pattern), 2000);
+      setTimeout(() => navigator.vibrate(pattern), 4000);
+    } else {
+      console.warn('Vibration API not supported on this device');
+    }
+  }
+
+  playLongWarningAlarm(): void {
+    console.log('Starting long warning alarm...');
+    this.stopLongAlarm(); // Stop any existing alarm
+    
+    let alarmCount = 0;
+    const maxAlarms = 6; // Play alarm 6 times over 30 seconds
+    
+    const playAlarmCycle = () => {
+      if (alarmCount >= maxAlarms) {
+        console.log('Long warning alarm completed');
+        return;
+      }
+      
+      // Play urgent beeping pattern
+      this.playUrgentBeepSequence();
+      alarmCount++;
+      
+      // Schedule next alarm cycle
+      this.longAlarmInterval = setTimeout(playAlarmCycle, 5000); // Every 5 seconds
+    };
+    
+    playAlarmCycle();
+  }
+
+  private playUrgentBeepSequence(): void {
+    // Play 3 urgent beeps in sequence
+    setTimeout(() => this.playTone(1000, 400, 'square'), 0);
+    setTimeout(() => this.playTone(1200, 400, 'square'), 500);
+    setTimeout(() => this.playTone(1000, 400, 'square'), 1000);
+    setTimeout(() => this.playTone(1400, 600, 'square'), 1500);
+  }
+
+  stopLongAlarm(): void {
+    if (this.longAlarmInterval) {
+      clearTimeout(this.longAlarmInterval);
+      this.longAlarmInterval = null;
+      console.log('Long alarm stopped');
     }
   }
 

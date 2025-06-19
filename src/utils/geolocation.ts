@@ -9,6 +9,7 @@ export class GeolocationManager {
   private callbacks: Set<(position: Location) => void> = new Set();
   private errorCallbacks: Set<(error: GeolocationPositionError) => void> = new Set();
   private isBackgroundMode: boolean = false;
+  private trackingInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.checkPermission();
@@ -113,7 +114,7 @@ export class GeolocationManager {
   private getTrackingOptions(): PositionOptions {
     const baseOptions: PositionOptions = {
       enableHighAccuracy: true,
-      maximumAge: 60000,
+      maximumAge: 30000, // Reduced from 60000 for more frequent updates
       timeout: 15000
     };
 
@@ -122,21 +123,21 @@ export class GeolocationManager {
         return {
           ...baseOptions,
           enableHighAccuracy: false,
-          maximumAge: 300000, // 5 minutes
+          maximumAge: 120000, // Reduced from 300000
           timeout: 30000
         };
       case 'active':
         return {
           ...baseOptions,
-          maximumAge: 60000, // 1 minute
-          timeout: 20000
+          maximumAge: 30000, // Reduced from 60000
+          timeout: 15000
         };
       case 'precision':
         return {
           ...baseOptions,
           enableHighAccuracy: true,
-          maximumAge: 15000, // 15 seconds
-          timeout: 10000
+          maximumAge: 10000, // Reduced from 15000
+          timeout: 8000
         };
       default:
         return baseOptions;
@@ -144,6 +145,8 @@ export class GeolocationManager {
   }
 
   startTracking(): void {
+    console.log('Starting location tracking with mode:', this.trackingMode);
+    
     // If background mode is active, don't start web-based tracking
     if (this.isBackgroundMode) {
       console.log('Background tracking is active, skipping web tracking');
@@ -156,6 +159,7 @@ export class GeolocationManager {
 
     const options = this.getTrackingOptions();
     
+    // Start watchPosition for continuous tracking
     this.watchId = navigator.geolocation.watchPosition(
       (position) => {
         const location: Location = {
@@ -165,6 +169,7 @@ export class GeolocationManager {
           timestamp: position.timestamp
         };
         
+        console.log('Location updated:', location);
         this.lastPosition = location;
         this.callbacks.forEach(callback => callback(location));
       },
@@ -174,6 +179,42 @@ export class GeolocationManager {
       },
       options
     );
+
+    // Also start a backup interval for active tracking
+    if (this.trackingMode === 'active' || this.trackingMode === 'precision') {
+      this.startTrackingInterval();
+    }
+  }
+
+  private startTrackingInterval(): void {
+    const intervalTime = this.trackingMode === 'precision' ? 15000 : 30000; // 15s for precision, 30s for active
+    
+    this.trackingInterval = setInterval(() => {
+      console.log('Interval location check...');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location: Location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp
+          };
+          
+          // Only update if location changed significantly
+          if (!this.lastPosition || 
+              Math.abs(location.lat - this.lastPosition.lat) > 0.0001 ||
+              Math.abs(location.lng - this.lastPosition.lng) > 0.0001) {
+            console.log('Interval location updated:', location);
+            this.lastPosition = location;
+            this.callbacks.forEach(callback => callback(location));
+          }
+        },
+        (error) => {
+          console.warn('Interval location error:', error);
+        },
+        this.getTrackingOptions()
+      );
+    }, intervalTime);
   }
 
   stopTracking(): void {
@@ -181,6 +222,13 @@ export class GeolocationManager {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
     }
+    
+    if (this.trackingInterval !== null) {
+      clearInterval(this.trackingInterval);
+      this.trackingInterval = null;
+    }
+    
+    console.log('Location tracking stopped');
   }
 
   async getCurrentPosition(): Promise<Location> {
