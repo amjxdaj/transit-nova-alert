@@ -16,7 +16,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
   children,
   className = '',
   hoverable = false,
-  glowColor = '#22C55E',
+  glowColor = '#00D4FF',
   blur = 'xl',
   style,
   onClick
@@ -31,15 +31,15 @@ const GlassCard: React.FC<GlassCardProps> = ({
   return (
     <div
       className={cn(
-        'relative rounded-2xl border border-green-200/50 bg-white/80',
+        'relative rounded-2xl border border-white/10 bg-white/5',
         blurClasses[blur],
         hoverable && 'floating-card cursor-pointer',
         className
       )}
       style={{
         boxShadow: `
-          0 8px 32px rgba(34, 197, 94, 0.1),
-          0 0 1px rgba(34, 197, 94, 0.2) inset,
+          0 8px 32px rgba(0, 0, 0, 0.3),
+          0 0 1px rgba(255, 255, 255, 0.1) inset,
           ${hoverable ? `0 0 20px ${glowColor}20` : ''}
         `,
         ...style
@@ -47,7 +47,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
       onClick={onClick}
     >
       {/* Holographic gradient overlay */}
-      <div className="absolute inset-0 rounded-2xl opacity-20 bg-gradient-to-br from-emerald-500/10 via-transparent to-green-500/10 pointer-events-none" />
+      <div className="absolute inset-0 rounded-2xl opacity-20 bg-gradient-to-br from-electric-500/20 via-transparent to-purple-500/20 pointer-events-none" />
       
       {/* Content */}
       <div className="relative z-10">

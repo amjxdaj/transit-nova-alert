@@ -24,10 +24,10 @@ const GlassButton: React.FC<GlassButtonProps> = ({
   glowing = false
 }) => {
   const variantStyles = {
-    primary: 'border-green-500/40 text-green-700 hover:border-green-600/60 hover:text-green-800',
-    secondary: 'border-green-300/30 text-green-600 hover:border-green-400/50 hover:text-green-700',
-    success: 'border-emerald-500/40 text-emerald-700 hover:border-emerald-600/60 hover:text-emerald-800',
-    danger: 'border-red-400/40 text-red-600 hover:border-red-500/60 hover:text-red-700'
+    primary: 'border-electric-500/30 text-electric-400 hover:border-electric-400/50 hover:text-electric-300',
+    secondary: 'border-white/20 text-white hover:border-white/40',
+    success: 'border-neon-500/30 text-neon-400 hover:border-neon-400/50 hover:text-neon-300',
+    danger: 'border-red-500/30 text-red-400 hover:border-red-400/50 hover:text-red-300'
   };
 
   const sizeStyles = {
@@ -37,10 +37,10 @@ const GlassButton: React.FC<GlassButtonProps> = ({
   };
 
   const glowColors = {
-    primary: '#22C55E',
-    secondary: '#10B981',
-    success: '#059669',
-    danger: '#EF4444'
+    primary: '#00D4FF',
+    secondary: '#FFFFFF',
+    success: '#39FF14',
+    danger: '#FF4444'
   };
 
   return (
@@ -49,7 +49,7 @@ const GlassButton: React.FC<GlassButtonProps> = ({
       disabled={disabled || loading}
       className={cn(
         'glass-button relative overflow-hidden font-medium transition-all duration-300',
-        'backdrop-blur-lg bg-white/60 border rounded-xl',
+        'backdrop-blur-lg bg-white/10 border rounded-xl',
         'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none',
         'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent',
         variantStyles[variant],
@@ -59,12 +59,12 @@ const GlassButton: React.FC<GlassButtonProps> = ({
       )}
       style={{
         boxShadow: glowing 
-          ? `0 0 20px ${glowColors[variant]}40, 0 4px 15px rgba(34, 197, 94, 0.15)`
-          : '0 4px 15px rgba(34, 197, 94, 0.15)',
+          ? `0 0 20px ${glowColors[variant]}40, 0 4px 15px rgba(0, 0, 0, 0.2)`
+          : '0 4px 15px rgba(0, 0, 0, 0.2)',
       }}
     >
       {/* Shimmer effect */}
-      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-green-500/10 to-transparent shimmer-bg animate-shimmer" />
+      <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent shimmer-bg animate-shimmer" />
       
       {/* Content */}
       <span className="relative z-10 flex items-center justify-center gap-2">
@@ -76,7 +76,7 @@ const GlassButton: React.FC<GlassButtonProps> = ({
 
       {/* Ripple effect container */}
       <div className="absolute inset-0 overflow-hidden rounded-xl">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-green-500/10 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
       </div>
     </button>
   );
