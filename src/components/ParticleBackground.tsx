@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 
 interface Particle {
@@ -28,7 +27,7 @@ const ParticleBackground: React.FC = () => {
       canvas.height = window.innerHeight;
     };
 
-    const colors = ['#00D4FF', '#39FF14', '#8B5CF6', '#FF1493'];
+    const colors = ['#10B981', '#22C55E', '#16A34A', '#059669'];
 
     const createParticle = (): Particle => ({
       x: Math.random() * canvas.width,
